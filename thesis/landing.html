@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Beautiful Landing Page</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <style>
+        /* Add your own custom CSS styles here */
+    </style>
+</head>
+
+
+
+<body>
+    <div height="400">Powell Optimizer</div>
+    <div><canvas id="responseTimeChartAdam" width="800" height="400"></canvas></div>
+    <div height="400">Adam Optimizer</div>
+    <div><canvas id="responseTimeChartPowell" width="800" height="400"></canvas></div>
+
+    <!-- <canvas id="responseTimeChartPowell" width="800" height="400"></canvas> -->
+
+    <script>
+        const K = [340.0, 340.0, 340.0, 320.0, 553.0];
+        // Ideal bond distances
+        const re = [1.09, 1.09, 1.09, 1.41, 0.945];
+        // Deformation force constants (for angles):
+        const kth = [33.0, 55.0, 35.0, 33.0, 35.0, 35.0, 33.0];
+        // Ideal angles (theta)
+        const th = [107.8, 108.5, 109.5, 107.8, 109.5, 109.5, 107.8];
+        // in radian:
+        const thRad = th.map(ang => ang / 180);
+        // Electrostatic part:
+        // Charges of the first atom for interactions that are not cut off
+        const qAtom1 = [0.04, 0.04, 0.04];
+        const qAtom2 = [0.042, 0.042, 0.042];
+        // Multiplying constant for Coulomb interactions (that is electrostatic):
+        const constCoulomb = 166;
+        // Generic constant:
+        const constGen = 10;
+
+
+        // -------- letiables to optimize: 
+        // (These will result in a vector which would serve as an initial guess)
+        // Bond distances;
+        const letBonds = [1.094, 1.101, 1.101, 1.428, 0.965];
+        // Long-range distances for the atoms being involved in the electrostatic part
+        const longrangeC = [2.832, 2.362, 2.362];
+        // Angles;
+        const letAngles = [108.8, 107.9, 112.3, 108.3, 112.3, 106.6, 108.4];
+        // Converted to radians straight away:
+        const letAnglesRad = letAngles.map(ang => ang / 180);
+        let Etotal = 0; // Total energy 
+
+        // (force constant, equilibrium parameter, actual value) => energy
+        const calcHarmonic = (fc, eqparam, actual) => {
+            return fc * (actual - eqparam) * (actual - eqparam);
+        }
+        // (charge1, charge2, their distance) => energy
+        const calcCharge = (q1, q2, actualdist) => constCoulomb * q1 * q2 / actualdist;
+        // -- First derivatives for the core functions: not necessary for the 
+        // energy calculations but they are needed for most optimization algorithms.
+        const firstDerivHarmonic = (fc, eqparam, actual) => {
+            return 2 * fc * (actual - eqparam);
+        }
+        const firstDerivCharge = (q1, q2, actualdist) => {
+            return -1 * constCoulomb * q1 * q2 / (actualdist * actualdist);
+        }
+        // -- -------------------------
+
+
+        function bondFunction(letBonds) {
+            let E = 0;
+            let Ei = 0;
+            letBonds.forEach((dist, i) => {
+                Ei = calcHarmonic(K[i], re[i], dist);
+                //console.log(Ei);
+                E += Ei;
+            });
+            // console.log("Bond energy component: ", E);
+            return E;
+        }
+        function angleFunction(letAnglesRad) {
+            let E = 0;
+            let Ei = 0;
+            letAnglesRad.forEach((ang, i) => {
+                Ei = constGen * calcHarmonic(kth[i], thRad[i], ang);
+                //console.log(Ei);
+                E += Ei;
+
+            });
+            // console.log("Angle bending interaction component: ", E);
+            return E;
+        }
+        function chargeFunction(longrangeC) {
+            let E = 0;
+            let Ei = 0;
+            longrangeC.forEach((dist, i) => {
+                Ei = constGen * calcCharge(qAtom1[i], qAtom2[i], dist);
+                //console.log(Ei);
+                E += Ei;
+            });
+            // console.log("Electrostatic interaction component: ", E);
+            return E;
+        }
+        let vectorToOptimize = [...letBonds, ...longrangeC, ...letAngles];
+        // Declared the vectorToOptimize.
+        console.log(vectorToOptimize);
+        // console.log(firstDerivHarmonic(K[0], re[0], letBonds[0]));
+        //console.log(firstDerivCharge(qAtom1[0], qAtom2[0], longrangeC[0]));
+
+        Etotal = (vectorToOptimize) => bondFunction(letBonds) + angleFunction(letAnglesRad) + chargeFunction(longrangeC);
+        // Define the unoptimized function
+        const inputValues = vectorToOptimize;
+
+        function unoptimizedFunction() {
+            const K = [340.0, 340.0, 340.0, 320.0, 553.0];
+            // Ideal bond distances
+            const re = [1.09, 1.09, 1.09, 1.41, 0.945];
+            // Deformation force constants (for angles):
+            const kth = [33.0, 55.0, 35.0, 33.0, 35.0, 35.0, 33.0];
+            // Ideal angles (theta)
+            const th = [107.8, 108.5, 109.5, 107.8, 109.5, 109.5, 107.8];
+            // in radian:
+            const thRad = th.map(ang => ang / 180);
+            // Electrostatic part:
+            // Charges of the first atom for interactions that are not cut off
+            const qAtom1 = [0.04, 0.04, 0.04];
+            const qAtom2 = [0.042, 0.042, 0.042];
+            // Multiplying constant for Coulomb interactions (that is electrostatic):
+            const constCoulomb = 166;
+            // Generic constant:
+            const constGen = 10;
+
+
+            // -------- letiables to optimize: 
+            // (These will result in a vector which would serve as an initial guess)
+            // Bond distances;
+            const letBonds = [1.094, 1.101, 1.101, 1.428, 0.965];
+            // Long-range distances for the atoms being involved in the electrostatic part
+            const longrangeC = [2.832, 2.362, 2.362];
+            // Angles;
+            const letAngles = [108.8, 107.9, 112.3, 108.3, 112.3, 106.6, 108.4];
+            // Converted to radians straight away:
+            const letAnglesRad = letAngles.map(ang => ang / 180);
+            let Etotal = 0; // Total energy 
+
+            // (force constant, equilibrium parameter, actual value) => energy
+            const calcHarmonic = (fc, eqparam, actual) => {
+                return fc * (actual - eqparam) * (actual - eqparam);
+            }
+            // (charge1, charge2, their distance) => energy
+            const calcCharge = (q1, q2, actualdist) => constCoulomb * q1 * q2 / actualdist;
+            // -- First derivatives for the core functions: not necessary for the 
+            // energy calculations but they are needed for most optimization algorithms.
+            const firstDerivHarmonic = (fc, eqparam, actual) => {
+                return 2 * fc * (actual - eqparam);
+            }
+            const firstDerivCharge = (q1, q2, actualdist) => {
+                return -1 * constCoulomb * q1 * q2 / (actualdist * actualdist);
+            }
+            // -- -------------------------
+
+
+            function bondFunction(letBonds) {
+                let E = 0;
+                let Ei = 0;
+                letBonds.forEach((dist, i) => {
+                    Ei = calcHarmonic(K[i], re[i], dist);
+                    //console.log(Ei);
+                    E += Ei;
+                });
+                // console.log("Bond energy component: ", E);
+                return E;
+            }
+            function angleFunction(letAnglesRad) {
+                let E = 0;
+                let Ei = 0;
+                letAnglesRad.forEach((ang, i) => {
+                    Ei = constGen * calcHarmonic(kth[i], thRad[i], ang);
+                    //console.log(Ei);
+                    E += Ei;
+                });
+                // console.log("Angle bending interaction component: ", E);
+                return E;
+            }
+            function chargeFunction(longrangeC) {
+                let E = 0;
+                let Ei = 0;
+                longrangeC.forEach((dist, i) => {
+                    Ei = constGen * calcCharge(qAtom1[i], qAtom2[i], dist);
+                    //console.log(Ei);
+                    E += Ei;
+                });
+                // console.log("Electrostatic interaction component: ", E);
+                return E;
+            }
+            let vectorToOptimize = [...letBonds, ...longrangeC, ...letAngles]; // Declared the vectorToOptimize.
+            console.log(vectorToOptimize);
+            // console.log(firstDerivHarmonic(K[0], re[0], letBonds[0]));
+            //console.log(firstDerivCharge(qAtom1[0], qAtom2[0], longrangeC[0]));
+
+            Etotal = (vectorToOptimize) => bondFunction(letBonds) + angleFunction(letAnglesRad) + chargeFunction(longrangeC);
+            console.log(Etotal(vectorToOptimize));
+            return Etotal(vectorToOptimize)
+        }
+
+        // Define the optimized function
+        function optimizedFunction() {
+
+
+            // async function optimize() {
+            //     const optimizer = tf.train.adam();
+            //     const numIterations = 100;
+            //     const learningRate = 0.1;
+
+            //     const variables = tf.variable(tf.tensor(vectorToOptimize));
+
+            //     for (let i = 0; i < numIterations; i++) {
+            //         optimizer.minimize(() => {
+            //             const Etotal =
+            //                 bondFunction(variables.slice(0, 5)) +
+            //                 angleFunction(variables.slice(5, 8)) +
+            //                 chargeFunction(variables.slice(8));
+
+            //             return tf.scalar(Etotal);
+            //         });
+
+            //         await tf.nextFrame();
+            //     }
+
+            //     const optimizedSolution = variables.dataSync();
+
+            //     console.log('Optimized Solution:');
+            //     console.log(optimizedSolution);
+            // }
+
+            // Epsilons value for error checking
+            let eps = 1e-2;
+            let convergence = false;
+
+            // make copy of initialization
+            let vector = vectorToOptimize.slice();
+            // scaling factor, can be made smaller for minor improvement.
+            let alpha = 0.001;
+
+            let pfx = Math.exp(10);
+            let functional = Etotal(vector);
+            while (!convergence) {
+
+
+                convergence = true;
+
+                // Perform update over all of the letiables in random order
+                for (let i = 0; i < vector.length; i++) {
+
+                    vector[i] += 1e-6;
+                    let fxi = Etotal(vector);
+                    vector[i] -= 1e-6;
+                    let dx = (fxi - functional) / 1e-6;
+
+                    if (Math.abs(dx) > eps) {
+                        convergence = false;
+                    }
+
+                    vector[i] = vector[i] - alpha * dx;
+                    functional = Etotal(vector);
+
+
+                }
+
+                // A simple step size selection rule. Near x function acts linear 
+                // (this is assumed at least) and thus very small values of alpha
+                // should lead to (small) improvement. Increasing alpha would
+                // yield better improvement up to certain alpha size.
+
+                alpha = pfx > functional ? alpha * 1.1 : alpha * 0.7;
+                pfx = functional;
+                // console.log(alpha); // Global Minimum.
+
+            }
+
+            let solution = {};
+            solution.vectorOptimized = vector;
+            solution.returnValue = functional;
+            // console.log(Etotal(solution.returnValue));
+            return solution.returnValue;
+
+
+        };
+
+
+
+        function unoptimizedFunction_2() {
+            const K = [340.0, 340.0, 340.0, 320.0, 553.0];
+            // Ideal bond distances
+            const re = [1.09, 1.09, 1.09, 1.41, 0.945];
+            // Deformation force constants (for angles):
+            const kth = [33.0, 55.0, 35.0, 33.0, 35.0, 35.0, 33.0];
+            // Ideal angles (theta)
+            const th = [107.8, 108.5, 109.5, 107.8, 109.5, 109.5, 107.8];
+            // in radian:
+            const thRad = th.map(ang => ang / 180);
+            // Electrostatic part:
+            // Charges of the first atom for interactions that are not cut off
+            const qAtom1 = [0.04, 0.04, 0.04];
+            const qAtom2 = [0.042, 0.042, 0.042];
+            // Multiplying constant for Coulomb interactions (that is electrostatic):
+            const constCoulomb = 166;
+            // Generic constant:
+            const constGen = 10;
+
+
+            // -------- letiables to optimize: 
+            // (These will result in a vector which would serve as an initial guess)
+            // Bond distances;
+            const letBonds = [1.094, 1.101, 1.101, 1.428, 0.965];
+            // Long-range distances for the atoms being involved in the electrostatic part
+            const longrangeC = [2.832, 2.362, 2.362];
+            // Angles;
+            const letAngles = [108.8, 107.9, 112.3, 108.3, 112.3, 106.6, 108.4];
+            // Converted to radians straight away:
+            const letAnglesRad = letAngles.map(ang => ang / 180);
+            let Etotal = 0; // Total energy 
+
+            // (force constant, equilibrium parameter, actual value) => energy
+            const calcHarmonic = (fc, eqparam, actual) => {
+                return fc * (actual - eqparam) * (actual - eqparam);
+            }
+            // (charge1, charge2, their distance) => energy
+            const calcCharge = (q1, q2, actualdist) => constCoulomb * q1 * q2 / actualdist;
+            // -- First derivatives for the core functions: not necessary for the 
+            // energy calculations but they are needed for most optimization algorithms.
+            const firstDerivHarmonic = (fc, eqparam, actual) => {
+                return 2 * fc * (actual - eqparam);
+            }
+            const firstDerivCharge = (q1, q2, actualdist) => {
+                return -1 * constCoulomb * q1 * q2 / (actualdist * actualdist);
+            }
+            // -- -------------------------
+
+
+            function bondFunction(letBonds) {
+                let E = 0;
+                let Ei = 0;
+                letBonds.forEach((dist, i) => {
+                    Ei = calcHarmonic(K[i], re[i], dist);
+                    //console.log(Ei);
+                    E += Ei;
+                });
+                // console.log("Bond energy component: ", E);
+                return E;
+            }
+            function angleFunction(letAnglesRad) {
+                let E = 0;
+                let Ei = 0;
+                letAnglesRad.forEach((ang, i) => {
+                    Ei = constGen * calcHarmonic(kth[i], thRad[i], ang);
+                    //console.log(Ei);
+                    E += Ei;
+                });
+                // console.log("Angle bending interaction component: ", E);
+                return E;
+            }
+            function chargeFunction(longrangeC) {
+                let E = 0;
+                let Ei = 0;
+                longrangeC.forEach((dist, i) => {
+                    Ei = constGen * calcCharge(qAtom1[i], qAtom2[i], dist);
+                    //console.log(Ei);
+                    E += Ei;
+                });
+                // console.log("Electrostatic interaction component: ", E);
+                return E;
+            }
+            let vectorToOptimize = [...letBonds, ...longrangeC, ...letAngles]; // Declared the vectorToOptimize.
+            // console.log(vectorToOptimize);
+            // console.log(firstDerivHarmonic(K[0], re[0], letBonds[0]));
+            //console.log(firstDerivCharge(qAtom1[0], qAtom2[0], longrangeC[0]));
+
+            Etotal = (vectorToOptimize) => bondFunction(letBonds) + angleFunction(letAnglesRad) + chargeFunction(longrangeC);
+            console.log(Etotal(vectorToOptimize));
+            return Etotal(vectorToOptimize)
+        }
+
+        // Define the optimized function
+        function optimizedFunction_2() {
+
+
+            async function optimize() {
+                const optimizer = tf.train.adam();
+                const numIterations = 100;
+                const learningRate = 0.1;
+
+                const variables = tf.variable(tf.tensor(vectorToOptimize));
+
+                for (let i = 0; i < numIterations; i++) {
+                    optimizer.minimize(() => {
+                        const Etotal =
+                            bondFunction(variables.slice(0, 5)) +
+                            angleFunction(variables.slice(5, 8)) +
+                            chargeFunction(variables.slice(8));
+
+                        return tf.scalar(Etotal);
+                    });
+
+                    await tf.nextFrame();
+                }
+
+                const optimizedSolution = variables.dataSync();
+
+                console.log('Optimized Solution:');
+                console.log(optimizedSolution);
+            }
+
+            // // Epsilons value for error checking
+            // let eps = 1e-2;
+            // let convergence = false;
+
+            // // make copy of initialization
+            // let vector = vectorToOptimize.slice();
+            // // scaling factor, can be made smaller for minor improvement.
+            // let alpha = 0.001;
+
+            // let pfx = Math.exp(10);
+            // let functional = Etotal(vector);
+            // while (!convergence) {
+
+
+            //     convergence = true;
+
+            //     // Perform update over all of the letiables in random order
+            //     for (let i = 0; i < vector.length; i++) {
+
+            //         vector[i] += 1e-6;
+            //         let fxi = Etotal(vector);
+            //         vector[i] -= 1e-6;
+            //         let dx = (fxi - functional) / 1e-6;
+
+            //         if (Math.abs(dx) > eps) {
+            //             convergence = false;
+            //         }
+
+            //         vector[i] = vector[i] - alpha * dx;
+            //         functional = Etotal(vector);
+
+            //     }
+
+            //     // A simple step size selection rule. Near x function acts linear 
+            //     // (this is assumed at least) and thus very small values of alpha
+            //     // should lead to (small) improvement. Increasing alpha would
+            //     // yield better improvement up to certain alpha size.
+
+            //     alpha = pfx > functional ? alpha * 1.1 : alpha * 0.7;
+            //     pfx = functional;
+
+            // }
+
+            // let solution = {};
+            // solution.vectorOptimized = vector;
+            // solution.returnValue = functional;
+            // // console.log(Etotal(solution.returnValue));
+            // return solution.returnValue;
+
+
+        };
+
+
+        // Measure the response time for each input value
+        async function measureResponseTimes() {
+            const unoptimizedResponseTimes = [];
+            const optimizedResponseTimes = [];
+
+            for (const inputValue of inputValues) {
+                if (inputValues.indexOf(inputValue) === 8) { break; }
+                // Measure response time for the unoptimized function
+                const unoptimizedStartTime = performance.now();
+                unoptimizedFunction();
+                const unoptimizedEndTime = performance.now();
+                const unoptimizedResponseTime = unoptimizedEndTime - unoptimizedStartTime;
+                unoptimizedResponseTimes.push(unoptimizedResponseTime);
+
+                // Measure response time for the optimized function
+                const optimizedStartTime = performance.now();
+                optimizedFunction();
+                const optimizedEndTime = performance.now();
+                const optimizedResponseTime = optimizedEndTime - optimizedStartTime;
+                optimizedResponseTimes.push(optimizedResponseTime);
+
+                // Wait for a short period to ensure accurate measurement
+                await new Promise(resolve => setTimeout(resolve, 10));
+
+            }
+
+            return { unoptimizedResponseTimes, optimizedResponseTimes };
+        }
+        // Plot the response time graph using Chart.js
+        async function plotResponseTimeGraph() {
+            const { unoptimizedResponseTimes, optimizedResponseTimes } = await measureResponseTimes();
+
+            const ctx = document.getElementById('responseTimeChartPowell').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: inputValues.slice(0, 8),
+                    datasets: [
+                        {
+                            label: 'Unoptimized',
+                            data: unoptimizedResponseTimes,
+                            borderColor: 'red',
+                            backgroundColor: 'rgba(255, 0, 0, 0.1)',
+                        },
+                        {
+                            label: 'Optimized',
+                            data: optimizedResponseTimes,
+                            borderColor: 'blue',
+                            backgroundColor: 'rgba(0, 0, 255, 0.1)',
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Input Values\n',
+                            },
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Response Time (ms)',
+                            },
+                        },
+                    },
+                },
+            });
+        }
+        // Call the function to plot the response time graph
+        plotResponseTimeGraph();
+        // Measure the response time for each input value
+        async function measureResponseTimes2() {
+            const unoptimizedResponseTimes = [];
+            const optimizedResponseTimes = [];
+
+            for (const inputValue of inputValues) {
+                if (inputValues.indexOf(inputValue) === 8) { break; }
+                // Measure response time for the unoptimized function
+                const unoptimizedStartTime = performance.now();
+                unoptimizedFunction_2();
+                const unoptimizedEndTime = performance.now();
+                const unoptimizedResponseTime = unoptimizedEndTime - unoptimizedStartTime;
+                unoptimizedResponseTimes.push(unoptimizedResponseTime);
+
+                // Measure response time for the optimized function
+                const optimizedStartTime = performance.now();
+                optimizedFunction_2();
+                const optimizedEndTime = performance.now();
+                const optimizedResponseTime = optimizedEndTime - optimizedStartTime;
+                optimizedResponseTimes.push(optimizedResponseTime);
+
+                // Wait for a short period to ensure accurate measurement
+                await new Promise(resolve => setTimeout(resolve, 10));
+
+            }
+
+            return { unoptimizedResponseTimes, optimizedResponseTimes };
+        }
+        // Plot the response time graph using Chart.js
+        async function plotResponseTimeGraph2() {
+            const { unoptimizedResponseTimes, optimizedResponseTimes } = await measureResponseTimes2();
+
+            const ctx = document.getElementById('responseTimeChartAdam').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: inputValues.slice(0, 8),
+                    datasets: [
+                        {
+                            label: 'Unoptimized',
+                            data: unoptimizedResponseTimes,
+                            borderColor: 'red',
+                            backgroundColor: 'rgba(255, 0, 0, 0.1)',
+                        },
+                        {
+                            label: 'Optimized',
+                            data: optimizedResponseTimes,
+                            borderColor: 'blue',
+                            backgroundColor: 'rgba(0, 0, 255, 0.1)',
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Input Values\n',
+                            },
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Response Time (ms)',
+                            },
+                        },
+                    },
+                },
+            });
+        }
+        // Call the function to plot the response time graph
+        plotResponseTimeGraph2();
+    </script>
+</body>
+
+</html>
